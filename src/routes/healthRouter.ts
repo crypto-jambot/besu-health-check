@@ -6,21 +6,26 @@ export const healthRouter = Router();
 healthRouter.get("", async (req, res) => {
     try {
         const { response: podResponse, body: podBody } =
-            await coreClient.listNamespacedPod("kube-api");
+            await coreClient.listNamespacedPod("node");
         const { items } = podBody;
         const podName = items
-            .filter((item) => item.metadata?.name?.includes("kube-api"))
+            .filter((item) => item.metadata?.labels!.app === "node")
             .map((item) => item.metadata?.name)
-            .reduce((previousValue, currentValue, currentIndex, array) => {
+            .reduce((previousValue, currentValue) => {
                 if (!previousValue) return;
                 return previousValue + currentValue;
             });
         if (!podName) return;
         const { response, body } = await coreClient.readNamespacedPodLog(
             podName,
-            "kube-api"
+            "node",
+            "besu"
         );
-        res.status(response.statusCode as number).json(body);
+        if (body.includes("io.vertx.core.VertxException: Thread blocked")) {
+            res.status(403).send("FAILURE");
+            return;
+        }
+        res.status(200).send("SUCESS");
     } catch (err: any) {
         res.status(err?.statusCode || 403).json(err?.body ?? err);
     }
